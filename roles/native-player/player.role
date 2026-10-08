@@ -1,0 +1,12 @@
+nuclear_role(
+ extension::FileWatcher
+ extension::Director
+ support::SignalCatcher
+ support::logging::ConsoleLogHandler
+ input::NUSimPlayer
+ strategy::NUSimApproach
+ skill::K1WalkPolicy
+ skill::K1KickPolicy
+ skill::K1GetUpPolicy
+ actuation::K1Servos
+)

@@ -14,6 +14,12 @@ file(
   "${PROJECT_SOURCE_DIR}/${NUCLEAR_UTILITY_DIR}/**.h"
 )
 
+if(NUBOTS_NATIVE_PLAYER)
+  # These utilities belong to serial hardware, motion or recording roles and bring in Linux audio/serial and unrelated
+  # robot-model dependencies.
+  list(FILTER src EXCLUDE REGEX "/(io/uart|motion/Balance|nbs/[^/]+)\\.(cpp|cc|c)$")
+endif()
+
 add_library(nuclear_utility ${NUCLEAR_LINK_TYPE} "${CMAKE_CURRENT_SOURCE_DIR}/utility.cpp" ${src})
 
 # Link in message library to utility

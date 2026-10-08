@@ -27,6 +27,11 @@ SOFTWARE.
 cmake_minimum_required(VERSION 3.20)
 project(NUbots)
 
+option(NUBOTS_NATIVE_PLAYER "Build CPU motion-policy players for NUSim" OFF)
+if(NUBOTS_NATIVE_PLAYER)
+  include(cmake/NativePlayer.cmake)
+endif()
+
 # The GENERATED source file property is now visible in all directories
 cmake_policy(SET CMP0118 NEW)
 
@@ -148,6 +153,10 @@ option(BUILD_ALL_MODULES "Create a role with all modules included" OFF)
 
 # Include the NUClear roles system
 add_subdirectory(nuclear)
+
+if(NUBOTS_NATIVE_PLAYER)
+  add_subdirectory(tools/native)
+endif()
 
 # Add the shared tests. Must happen after adding NUClear so that this variable is cached
 if(BUILD_TESTS)

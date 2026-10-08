@@ -10,34 +10,35 @@ target_link_libraries(nuclear_utility PRIVATE ExprTk::ExprTk)
 find_package(fmt REQUIRED)
 target_link_libraries(nuclear_utility PUBLIC fmt::fmt)
 
-find_package(zstr REQUIRED)
-find_package(ZLIB REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC zstr::zstr ZLIB::ZLIB)
+if(NOT NUBOTS_NATIVE_PLAYER)
+  find_package(zstr REQUIRED)
+  find_package(ZLIB REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC zstr::zstr ZLIB::ZLIB)
 
-find_package(mio REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC mio::mio)
+  find_package(mio REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC mio::mio)
 
-find_package(tinyxml2 REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC tinyxml2::tinyxml2)
+  find_package(tinyxml2 REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC tinyxml2::tinyxml2)
 
-find_package(tinyrobotics REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC tinyrobotics::tinyrobotics)
+  find_package(tinyrobotics REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC tinyrobotics::tinyrobotics)
 
-find_package(NLopt REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC NLopt::nlopt)
+  find_package(NLopt REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC NLopt::nlopt)
 
-find_package(CURL REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC CURL::libcurl)
+  find_package(CURL REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC CURL::libcurl)
 
-find_package(ALSA REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC ALSA::ALSA)
+  find_package(ALSA REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC ALSA::ALSA)
 
-find_package(Lame REQUIRED)
-target_link_libraries(nuclear_utility PUBLIC ${LAME_LIBRARIES})
+  find_package(Lame REQUIRED)
+  target_link_libraries(nuclear_utility PUBLIC ${LAME_LIBRARIES})
+endif()
 
 find_package(onnxruntime REQUIRED)
 target_link_libraries(nuclear_utility PRIVATE onnxruntime::onnxruntime)
-
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   find_package(libbacktrace REQUIRED)

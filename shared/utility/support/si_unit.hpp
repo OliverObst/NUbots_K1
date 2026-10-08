@@ -50,7 +50,7 @@ namespace utility::support {
         }
 
         // Work out our SI index between -8 and 8
-        const auto si_index = std::max(-8L, std::min(8L, int64_t(std::log10(std::abs(d)) / 3)));
+        const auto si_index = std::max<int64_t>(-8, std::min<int64_t>(8, int64_t(std::log10(std::abs(d)) / 3)));
 
         switch (si_index) {
             case 8: return std::make_pair(d * 1e-24, "Y");  // yotta

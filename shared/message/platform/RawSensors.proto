@@ -188,6 +188,8 @@ message RawSensors {
     /// Ground truth from a simulator
     webots.RobotPoseGroundTruth robot_pose_ground_truth = 12;
     FanWarning                  fan_warning             = 13;
+    /// Platform IMU attitude, intrinsic roll/pitch/yaw in radians.
+    fvec3 imu_rpy = 14;
 }
 
 // Reset sensors and servo targets in Webots

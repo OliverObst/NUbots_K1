@@ -391,7 +391,7 @@ namespace message::conversion {
             auto nanos   = std::chrono::nanoseconds(proto.nanos());
 
             // Make a timestamp out of the summation of them
-            t = NUClear::clock::time_point(seconds + nanos);
+            t = NUClear::clock::time_point(std::chrono::duration_cast<NUClear::clock::duration>(seconds + nanos));
 
             return t;
         }

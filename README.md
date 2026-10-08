@@ -59,3 +59,9 @@ If running a test role (e.x. test/localisation), then run it from the home direc
 ```sh
 test/localisation
 ```
+
+## Native simulator player
+
+The [native player guide](docs/NATIVE_PLAYER.md) describes a minimal CPU motion-policy role
+for NUSim using simulated localisation, independent DDS domains and Director-arbitrated
+walk, kick and get-up policies.

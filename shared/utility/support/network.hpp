@@ -34,7 +34,9 @@ extern "C" {
 #include <arpa/inet.h>
 #include <cstring>
 #include <ifaddrs.h>
-#include <linux/wireless.h>
+#if defined(__linux__)
+    #include <linux/wireless.h>
+#endif
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -83,6 +85,7 @@ namespace utility::support {
     }
 
     inline std::string get_wireless_interface() {
+#if defined(__linux__)
         struct ifaddrs *ifaddr, *ifa;
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -109,9 +112,14 @@ namespace utility::support {
         freeifaddrs(ifaddr);
         close(sock);
         return "";
+#else
+        // Robot Wi-Fi configuration uses Linux wireless extensions.
+        return "";
+#endif
     }
 
     inline std::string get_ssid(const std::string& interface_name) {
+#if defined(__linux__)
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
         struct iwreq pwrq;
         memset(&pwrq, 0, sizeof(pwrq));
@@ -129,6 +137,10 @@ namespace utility::support {
         close(sock);
         ssid[pwrq.u.essid.length] = '\0';
         return std::string(ssid);
+#else
+        (void) interface_name;
+        return "";
+#endif
     }
 
     inline std::string get_wifi_password(const std::string& ssid) {

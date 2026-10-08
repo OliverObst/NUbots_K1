@@ -1,0 +1,12 @@
+syntax = "proto3";
+package message.input;
+message NUSimStatus {
+ uint32 robot_id = 1;
+ uint32 team_id = 2;
+ uint32 player_id = 3;
+ double sim_time = 4;
+ bool ready = 5;
+ bool fallen = 6;
+ uint64 reset_generation = 7;
+ bool reset = 8;
+}
