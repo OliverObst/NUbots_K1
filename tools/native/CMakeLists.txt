@@ -14,3 +14,7 @@ add_test(
     check_policy_inference "${PROJECT_BINARY_DIR}/k1_walk_v3_20260812_102M.onnx"
     "${PROJECT_BINARY_DIR}/k1_kick_v7_20260728_2504M.onnx" "${PROJECT_BINARY_DIR}/k1_getup_v21_20260725_984M.onnx"
 )
+
+add_executable(check_team_strategy check_team_strategy.cpp)
+target_link_libraries(check_team_strategy PRIVATE nuclear::utility)
+add_test(NAME test_team_strategy COMMAND check_team_strategy)

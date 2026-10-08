@@ -14,6 +14,7 @@
 #include "message/booster/BoosterLowCmd.hpp"
 #include "message/booster/BoosterMode.hpp"
 #include "message/booster/BoosterModeState.hpp"
+#include "message/input/NUSimRoster.hpp"
 #include "message/input/NUSimStatus.hpp"
 #include "message/input/Sensors.hpp"
 #include "message/localisation/Ball.hpp"
@@ -140,7 +141,8 @@ namespace module::input {
                         self = &robot;
                 if (!self)
                     continue;
-                const bool reset   = !seen || session != stamp.session_id() || generation != stamp.reset_generation();
+                const bool reset = !seen || session != stamp.session_id() || generation != stamp.reset_generation()
+                                   || (current_mode == 3 && self->mode() != 3);
                 session            = stamp.session_id();
                 generation         = stamp.reset_generation();
                 sequence           = stamp.sample_sequence();
@@ -203,10 +205,12 @@ namespace module::input {
                 field->covariance      = covariance_floor * Eigen::Matrix3d::Identity();
                 field->localised       = true;
                 for (const auto& team : world.teams())
-                    if (team.team_id() == self->identity().team_id() && !team.attacks_positive_x())
+                    if (team.team_id() == self->identity().team_id()
+                        && (std::getenv("NUSIM_TEAM_PLAYER") ? team.attacks_positive_x() : !team.attacks_positive_x()))
                         field->Hfw.linear() = Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()).toRotationMatrix();
                 if (world.ball().valid()) {
                     auto ball                 = std::make_unique<localisation::Ball>();
+                    ball->Hcw                 = sensors->Htw;
                     ball->rBWw                = vector(world.ball().centre_s());
                     ball->vBw                 = vector(world.ball().linear_velocity_s());
                     ball->average_rBWw        = ball->rBWw;
@@ -225,7 +229,8 @@ namespace module::input {
                 for (const auto& other : world.robots())
                     if (other.identity().robot_id() != robot_id) {
                         localisation::Robot robot;
-                        robot.id                  = other.identity().player_id();
+                        robot.id                  = other.identity().robot_id();
+                        robot.purpose.player_id   = other.identity().player_id();
                         robot.rRWw                = vector(other.torso().position_s());
                         robot.vRw                 = vector(other.torso().linear_velocity_s());
                         robot.covariance          = covariance_floor * Eigen::Matrix4d::Identity();
@@ -235,6 +240,7 @@ namespace module::input {
                     }
                 auto status              = std::make_unique<message::input::NUSimStatus>();
                 status->robot_id         = robot_id;
+                status->timestamp        = now;
                 status->team_id          = self->identity().team_id();
                 status->player_id        = self->identity().player_id();
                 status->sim_time         = stamp.sim_time();
@@ -246,7 +252,13 @@ namespace module::input {
                 emit(std::move(raw));
                 emit(std::move(sensors));
                 emit(std::move(field));
-                emit(std::move(robots));
+                if (std::getenv("NUSIM_TEAM_PLAYER")) {
+                    auto roster    = std::make_unique<message::input::NUSimRoster>();
+                    roster->robots = *robots;
+                    emit(std::move(roster));
+                }
+                else
+                    emit(std::move(robots));
                 emit(std::move(status));
             }
         });

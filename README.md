@@ -65,3 +65,6 @@ test/localisation
 The [native player guide](docs/NATIVE_PLAYER.md) describes a minimal CPU motion-policy role
 for NUSim using simulated localisation, independent DDS domains and Director-arbitrated
 walk, kick and get-up policies.
+
+The [native team guide](docs/NATIVE_TEAM.md) runs three independent soccer players with
+local teammate communication and an attacker-loss acceptance check.

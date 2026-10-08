@@ -1,0 +1,5 @@
+syntax = "proto3";
+package message.input;
+import "message/localisation/Robot.proto";
+// Physical observations only. The team adapter supplies purpose and availability from UDP.
+message NUSimRoster { localisation.Robots robots = 1; }

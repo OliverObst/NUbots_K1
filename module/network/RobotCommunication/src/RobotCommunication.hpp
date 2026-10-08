@@ -27,6 +27,7 @@
 #ifndef MODULE_NETWORK_ROBOTCOMMUNICATION_HPP
 #define MODULE_NETWORK_ROBOTCOMMUNICATION_HPP
 
+#include <map>
 #include <nuclear>
 #include <string>
 
@@ -38,8 +39,10 @@ namespace module::network {
         struct Config {
             /// @brief The port to send team messages, 0 to auto-compute as 10000 + team_id
             uint send_port = 0;
+            std::map<uint32_t, uint16_t> local_player_ports;
             /// @brief The port to receive team messages, 0 to auto-compute as 10000 + team_id
-            uint receive_port = 0;
+            uint receive_port  = 0;
+            uint32_t player_id = 0;
             /// @brief The IP address used for broadcasting data
             std::string broadcast_ip = "";
             /// @brief Set this to only receive packets from this IP address

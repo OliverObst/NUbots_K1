@@ -70,11 +70,12 @@ Odometry world `{w}` equals simulator world `{s}`. The adapter publishes this ro
 localisation `Field`, `Ball` and `Robots`. `Field.Hfw` rotates by 180 degrees for the opposing
 team. Capture time supplies measurement timestamps. Covariance diagonals default to `1e-6`;
 a positive `NUSIM_COVARIANCE_FLOOR` overrides them. Missing ball data produces zero confidence.
-`Robots.id` uses team-local player IDs, distinguished by `teammate`. Tactical purpose is not
+`Robots.id` uses simulator robot IDs; `Purpose.player_id` carries the team-local player ID. Tactical purpose is not
 inferred from physics.
 
-Full foot/joint kinematics, camera metadata, GameController half changes, competition
-behaviours and team communication remain subsequent work. Camera processing and the saved
+The [three-player team role](NATIVE_TEAM.md) adds existing soccer behaviours and teammate
+communication. Full foot/joint kinematics, camera metadata, GameController half changes
+and complete competition behaviour coverage remain subsequent work. Camera processing and the saved
 macOS vision prototype are not required to run this role.
 
 ## Behavioural acceptance

@@ -34,6 +34,9 @@
 
 #include "message/behaviour/state/WalkState.hpp"
 #include "message/input/GameState.hpp"
+#ifdef NUBOTS_NATIVE_PLAYER
+    #include "message/input/NUSimStatus.hpp"
+#endif
 #include "message/input/Robocup.hpp"
 #include "message/input/Sensors.hpp"
 #include "message/localisation/Ball.hpp"
@@ -65,12 +68,17 @@ namespace module::network {
 
 
     struct StartupDelay {};
+    struct CommunicationConfiguration {
+        Configuration config;
+    };
 
     RobotCommunication::RobotCommunication(std::unique_ptr<NUClear::Environment> environment)
         : Reactor(std::move(environment)) {
 
-        on<Configuration, Trigger<GlobalConfig>>("RobotCommunication.yaml")
-            .then([this](const Configuration& config, const GlobalConfig& global_config) {
+        on<Trigger<CommunicationConfiguration>, Trigger<GlobalConfig>, Sync<RobotCommunication>>().then(
+            [this](const CommunicationConfiguration& settings, const GlobalConfig& global_config) {
+                const auto& config             = settings.config;
+                const bool first_configuration = cfg.receive_port == 0;
                 // Use configuration here from file RobotCommunication.yaml
                 log_level = config["log_level"].as<NUClear::LogLevel>();
                 // Delay before sending messages
@@ -85,16 +93,39 @@ namespace module::network {
                 const uint configured_send_port = config["send_port"].as<uint>();
                 cfg.send_port = (configured_send_port != 0) ? configured_send_port : 10000 + global_config.team_id;
                 const uint configured_receive_port = config["receive_port"].as<uint>();
-                const uint new_receive_port =
+                uint new_receive_port =
                     (configured_receive_port != 0) ? configured_receive_port : 10000 + global_config.team_id;
 
+                const auto old_local_ports = cfg.local_player_ports;
+                cfg.local_player_ports.clear();
+                std::set<uint> local_ports;
+                if (config.config["local_player_ports"]) {
+                    for (auto entry : config["local_player_ports"]) {
+                        const auto id   = entry.first.as<uint32_t>();
+                        const auto port = entry.second.as<uint>();
+                        if (id == 0 || port == 0 || port > 65535 || !local_ports.insert(port).second)
+                            throw std::invalid_argument("Invalid local player/port");
+                        cfg.local_player_ports[id] = static_cast<uint16_t>(port);
+                    }
+                    if (!cfg.local_player_ports.count(global_config.player_id))
+                        throw std::invalid_argument("Local transport has no port for this player");
+                    new_receive_port = cfg.local_player_ports.at(global_config.player_id);
+                }
+
+                log<INFO>("TEAM_TRANSPORT",
+                          global_config.player_id,
+                          "peers",
+                          cfg.local_player_ports.size(),
+                          "receive",
+                          new_receive_port);
                 // Need to determine broadcast ip
                 cfg.broadcast_ip = config["broadcast_ip"].as<std::string>("");
                 // Need to determine optional filtering packets
                 cfg.udp_filter_address = config["udp_filter_address"].as<std::string>("");
 
                 // If we are changing ports (the port starts at 0 so this should start it the first time)
-                if (new_receive_port != cfg.receive_port) {
+                if (new_receive_port != cfg.receive_port || old_local_ports != cfg.local_player_ports
+                    || cfg.player_id != global_config.player_id) {
                     // If we have an old binding, then unbind it
                     // The port starts at 0 so this should work
                     if (cfg.receive_port != 0) {
@@ -102,56 +133,69 @@ namespace module::network {
                     }
 
                     cfg.receive_port = new_receive_port;
+                    cfg.player_id    = global_config.player_id;
 
                     // Bind our new handle
-                    std::tie(listen_handle, std::ignore, std::ignore) =
-                        on<UDP::Broadcast, Single>(cfg.receive_port).then([this, &global_config](const UDP::Packet& p) {
-                            std::string remote_addr = p.remote.address;
+                    auto receive = [this, player_id = global_config.player_id](const UDP::Packet& p) {
+                        std::string remote_addr = p.remote.address;
 
-                            // Apply filtering of packets if udp_filter_address is set in config
-                            if (!cfg.udp_filter_address.empty() && remote_addr != cfg.udp_filter_address) {
-                                if (std::find(ignored_ip_addresses.begin(), ignored_ip_addresses.end(), remote_addr)
-                                    == ignored_ip_addresses.end()) {
-                                    ignored_ip_addresses.insert(remote_addr);
-                                    log<DEBUG>("Ignoring UDP packet from",
-                                              remote_addr,
-                                              "as it doesn't match configured filter address",
-                                              cfg.udp_filter_address);
-                                }
-
-                                return;
+                        // Apply filtering of packets if udp_filter_address is set in config
+                        if (!cfg.udp_filter_address.empty() && remote_addr != cfg.udp_filter_address) {
+                            if (std::find(ignored_ip_addresses.begin(), ignored_ip_addresses.end(), remote_addr)
+                                == ignored_ip_addresses.end()) {
+                                ignored_ip_addresses.insert(remote_addr);
+                                log<DEBUG>("Ignoring UDP packet from",
+                                           remote_addr,
+                                           "as it doesn't match configured filter address",
+                                           cfg.udp_filter_address);
                             }
 
-                            // Deserialise the incoming RoboCup message
-                            const std::vector<unsigned char>& payload = p.payload;
-                            Message incoming_msg = NUClear::util::serialise::Serialise<Message>::deserialise(payload);
+                            return;
+                        }
 
-                            // Check if the incoming message is from the same player
-                            bool own_player_message = global_config.player_id == incoming_msg.current_pose.player_id;
+                        // Deserialise the incoming RoboCup message
+                        const std::vector<unsigned char>& payload = p.payload;
+                        Message incoming_msg = NUClear::util::serialise::Serialise<Message>::deserialise(payload);
 
-                            // Port-per-team ensures only teammates broadcast on this port
-                            // Filter out messages from ourselves only
-                            if (!own_player_message) {
-                                log<DEBUG>("Message received from teammate ID",
-                                          incoming_msg.current_pose.player_id,
-                                          "position:",
-                                          incoming_msg.current_pose.position.x(),
-                                          incoming_msg.current_pose.position.y(),
-                                          incoming_msg.current_pose.position.z(),
-                                          "going for ball:",
-                                          incoming_msg.going_for_ball);
-                                emit(std::make_unique<Message>(std::move(incoming_msg)));
-                            }
-                        });
+                        // Check if the incoming message is from the same player
+                        bool own_player_message = player_id == incoming_msg.current_pose.player_id;
+
+                        // Port-per-team ensures only teammates broadcast on this port
+                        // Filter out messages from ourselves only
+                        if (!own_player_message) {
+                            log<DEBUG>("Message received from teammate ID",
+                                       incoming_msg.current_pose.player_id,
+                                       "position:",
+                                       incoming_msg.current_pose.position.x(),
+                                       incoming_msg.current_pose.position.y(),
+                                       incoming_msg.current_pose.position.z(),
+                                       "going for ball:",
+                                       incoming_msg.going_for_ball);
+                            emit(std::make_unique<Message>(std::move(incoming_msg)));
+                        }
+                    };
+                    if (cfg.local_player_ports.empty()) {
+                        std::tie(listen_handle, std::ignore, std::ignore) =
+                            on<UDP::Broadcast, Single, Sync<RobotCommunication>>(cfg.receive_port)
+                                .then(std::move(receive));
+                    }
+                    else {
+                        std::tie(listen_handle, std::ignore, std::ignore) =
+                            on<UDP, Single, Sync<RobotCommunication>>(cfg.receive_port, "127.0.0.1")
+                                .then(std::move(receive));
+                    }
                 }
+                if (first_configuration)
+                    emit<Scope::DELAY>(std::make_unique<StartupDelay>(), std::chrono::seconds(cfg.startup_delay));
             });
 
-        on<Startup>().then([this] {
-            // Delay the robot sending messages, to allow the robot to collect data and send reasonable information
-            emit<Scope::DELAY>(std::make_unique<StartupDelay>(), std::chrono::seconds(cfg.startup_delay));
+
+        // Register the consumer first: GlobalConfig may already exist during module installation.
+        on<Configuration>("RobotCommunication.yaml").then([this](const Configuration& config) {
+            emit(std::make_unique<CommunicationConfiguration>(CommunicationConfiguration{config}));
         });
 
-        on<Trigger<GameState>>().then([this](const GameState& game_state) {
+        on<Trigger<GameState>, Sync<RobotCommunication>>().then([this](const GameState& game_state) {
             // Reset message counter when a new game ends
             if (game_state.phase == GameState::Phase::FINISHED) {
                 if (messages_sent > 0) {
@@ -171,7 +215,11 @@ namespace module::network {
            Optional<With<GameState>>,
            Optional<With<Purpose>>,
            Optional<With<WalkToDebug>>,
-           With<GlobalConfig>>()
+#ifdef NUBOTS_NATIVE_PLAYER
+           Optional<With<message::input::NUSimStatus>>,
+#endif
+           With<GlobalConfig>,
+           Sync<RobotCommunication>>()
             .then([this](const std::shared_ptr<const Ball>& loc_ball,
                          const std::shared_ptr<const WalkState>& walk_state,
                          const std::shared_ptr<const Kick>& kick,
@@ -180,6 +228,10 @@ namespace module::network {
                          const std::shared_ptr<const GameState>& game_state,
                          const std::shared_ptr<const Purpose>& purpose,
                          const std::shared_ptr<const WalkToDebug>& walk_to,
+
+#ifdef NUBOTS_NATIVE_PLAYER
+                         const std::shared_ptr<const message::input::NUSimStatus>& sim_status,
+#endif
                          const GlobalConfig& config) {
                 auto msg = std::make_unique<Message>();
 
@@ -223,7 +275,7 @@ namespace module::network {
                         // x and y and rotate the yaw by pi before sending.
                         msg->current_pose.position.x() *= -1.0F;
                         msg->current_pose.position.y() *= -1.0F;
-                        const double current_yaw = mat_to_rpy_intrinsic(Hft.rotation()).z();
+                        const double current_yaw       = mat_to_rpy_intrinsic(Hft.rotation()).z();
                         msg->current_pose.position.z() = static_cast<float>(normalise_angle(current_yaw + M_PI));
 
                         msg->current_pose.covariance = field->covariance.cast<float>();
@@ -250,7 +302,7 @@ namespace module::network {
                     msg->target_pose.position.x() *= -1.0F;
                     msg->target_pose.position.y() *= -1.0F;
                     // Extract yaw from rotation matrix
-                    const double target_yaw = mat_to_rpy_intrinsic(Hfd.rotation()).z();
+                    const double target_yaw       = mat_to_rpy_intrinsic(Hfd.rotation()).z();
                     msg->target_pose.position.z() = static_cast<float>(normalise_angle(target_yaw + M_PI));
                     // Copy team and player ID to target pose
                     msg->target_pose.team      = msg->current_pose.team;
@@ -306,6 +358,20 @@ namespace module::network {
                                        && (purpose->purpose.value == SoccerPosition::ATTACK
                                            || purpose->purpose.value == SoccerPosition::READY_ATTACK));
 
+                if (purpose)
+                    msg->team_purpose = *purpose;
+#ifdef NUBOTS_NATIVE_PLAYER
+                if (sim_status) {
+                    const bool available =
+                        sim_status->ready && !sim_status->fallen
+                        && NUClear::clock::now() - sim_status->timestamp < std::chrono::milliseconds(250);
+                    msg->team_purpose.active = msg->team_purpose.active && available;
+                    if (!available) {
+                        msg->going_for_ball = false;
+                        msg->state          = message::input::State::PENALISED;
+                    }
+                }
+#endif
                 // Single-line summary of the outgoing broadcast
                 log<DEBUG>(fmt::format(
                     "Broadcast: id={} {} pose=({:.2f}, {:.2f}, {:.2f}) walk=({:.2f}, {:.2f}, {:.2f}) "
@@ -358,7 +424,14 @@ namespace module::network {
                 }
 
 
-                emit<Scope::UDP>(msg, cfg.broadcast_ip, cfg.send_port);
+                if (cfg.local_player_ports.empty())
+                    emit<Scope::UDP>(msg, cfg.broadcast_ip, cfg.send_port);
+                else {
+                    for (const auto& [id, port] : cfg.local_player_ports) {
+                        if (id != config.player_id)
+                            emit<Scope::UDP>(std::make_unique<Message>(*msg), "127.0.0.1", port, "127.0.0.1");
+                    }
+                }
             });
     }
 }  // namespace module::network

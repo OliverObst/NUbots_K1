@@ -30,6 +30,7 @@
 
 #include <Eigen/Core>
 #include <cmath>
+#include <numbers>
 
 /**
  * @author Trent Houliston

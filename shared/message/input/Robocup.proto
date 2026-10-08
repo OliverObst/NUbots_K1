@@ -28,6 +28,7 @@ package message.input;
 
 import "Vector.proto";
 import "Matrix.proto";
+import "message/purpose/Purpose.proto";
 import "google/protobuf/timestamp.proto";
 
 // fvec2, A column vector of two floats (4 Bytes + 1 tag) * 2 = 10 Bytes
@@ -146,6 +147,10 @@ message Message {
     /// (Attacking)
     /// 1 + 1 tag = 2 Bytes
     bool going_for_ball = 8;
+
+    // Optional NUbots extension (100 + team number 1). Mixed-team receivers ignore it.
+    // player_id == 0 means absent; going_for_ball remains the interoperable intention.
+    purpose.Purpose team_purpose = 101;
 
     // Team specific data to be set in tag number equal to 100 + GC number
     // This should not exceed 128 Bytes (tag and length will add 2 Bytes of overhead)
